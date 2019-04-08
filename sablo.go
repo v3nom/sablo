@@ -6,36 +6,62 @@ import (
 	"path/filepath"
 )
 
-var templates map[string]*template.Template
+var templateCache map[string]*template.Template
+var pageCache map[string]*template.Template
 
 // LoadTemplates creates template cache
 func LoadTemplates(layoutPattern string, pagePattern string) error {
-	if templates == nil {
-		templates = make(map[string]*template.Template)
+	if templateCache == nil {
+		templateCache = make(map[string]*template.Template)
 	}
 
 	layouts, err := filepath.Glob(layoutPattern)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	pages, err := filepath.Glob(pagePattern)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	for _, page := range pages {
 		files := append(layouts, page)
-		templates[filepath.Base(page)] = template.Must(template.ParseFiles(files...))
+		templateCache[filepath.Base(page)] = template.Must(template.ParseFiles(files...))
 	}
 	return nil
 }
 
-// RenderTemplate is a wrapper around template.ExecuteTemplate.
-func RenderTemplate(w http.ResponseWriter, name string, data interface{}) {
-	tmpl, ok := templates[name]
+// LoadPages loads page files without a template
+func LoadPages(pagePattern string) error {
+	if pageCache == nil {
+		pageCache = make(map[string]*template.Template)
+	}
+
+	pages, err := filepath.Glob(pagePattern)
+	if err != nil {
+		return err
+	}
+	for _, page := range pages {
+		pageCache[filepath.Base(page)] = template.Must(template.ParseFiles(page))
+	}
+	return nil
+}
+
+// RenderPage renders single page
+func RenderPage(w http.ResponseWriter, name string, data interface{}) error {
+	tmpl, ok := pageCache[name]
 	if !ok {
 		panic("The template " + name + " does not exist.")
 	}
-	tmpl.ExecuteTemplate(w, "base", data)
+	return tmpl.Execute(w, data)
+}
+
+// RenderTemplate is a wrapper around template.ExecuteTemplate.
+func RenderTemplate(w http.ResponseWriter, name string, data interface{}) error {
+	tmpl, ok := templateCache[name]
+	if !ok {
+		panic("The template " + name + " does not exist.")
+	}
+	return tmpl.ExecuteTemplate(w, "base", data)
 }
